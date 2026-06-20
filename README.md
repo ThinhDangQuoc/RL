@@ -1,145 +1,119 @@
-# Deep Reinforcement Learning for Automated Stock Trading: An Ensemble Strategy
-This repository provides codes for [ICAIF 2020 paper](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3690996)
+# Học Sâu Tăng Cường Trong Giao Dịch Chứng Khoán Tự Động: Chiến Lược Ensemble Trên Thị Trường Việt Nam (HOSE)
 
-This ensemble strategy is reimplemented in a Jupiter Notebook at [FinRL](https://github.com/AI4Finance-LLC/FinRL-Library).
+Dự án này áp dụng phương pháp Học sâu Tăng cường (Deep Reinforcement Learning - DRL) để xây dựng hệ thống giao dịch chứng khoán tự động trên thị trường chứng khoán Việt Nam (sàn HOSE). Hệ thống huấn luyện và kết hợp 3 thuật toán Actor-Critic tiêu biểu: **PPO** (Proximal Policy Optimization), **A2C** (Advantage Actor-Critic), và **DDPG** (Deep Deterministic Policy Gradient), kết hợp với cơ chế **Ensemble** linh hoạt và **Chỉ số Hỗn loạn** (Turbulence Index) để quản trị rủi ro khủng hoảng.
 
+---
 
-## Abstract
-Stock trading strategies play a critical role in investment. However, it is challenging to design a profitable strategy in a complex and dynamic stock market. In this paper, we propose a deep ensemble reinforcement learning scheme that automatically learns a stock trading strategy by maximizing investment return. We train a deep reinforcement learning agent and obtain an ensemble trading strategy using the three actor-critic based algorithms: Proximal Policy Optimization (PPO), Advantage Actor Critic (A2C), and Deep Deterministic Policy Gradient (DDPG). The ensemble strategy inherits and integrates the best features of the three algorithms, thereby robustly adjusting to different market conditions. In order to avoid the large memory consumption in training networks with continuous action space, we employ a load-on-demand approach for processing very large data. We test our algorithms on the 30 Dow Jones stocks which have adequate liquidity. The performance of the trading agent with different reinforcement learning algorithms is evaluated and compared with both the Dow Jones Industrial Average index and the traditional min-variance portfolio allocation strategy. The proposed deep ensemble scheme is shown to outperform the three individual algorithms and the two baselines in terms of the risk-adjusted return measured by the Sharpe ratio.
+## 1. Giới thiệu Bài toán & Kiến trúc Hệ thống
 
-<img src=figs/stock_trading.png width="600">
+### Mô hình hóa MDP (Markov Decision Process)
+* **Không gian trạng thái (State Space - 91 chiều)**: 
+  * Số dư tiền mặt hiện tại (1 chiều).
+  * Số lượng cổ phiếu đang nắm giữ của 15 mã trong danh mục (15 chiều).
+  * Giá đóng cửa điều chỉnh của 15 mã cổ phiếu (15 chiều).
+  * 4 chỉ báo kỹ thuật phổ biến cho mỗi mã cổ phiếu: MACD, RSI, CCI, ADX ($15 \times 4 = 60$ chiều).
+* **Không gian hành động (Action Space - 15 chiều)**: Vector liên tục trong đoạn $[-1, 1]^{15}$ đại diện cho hành động Bán (âm), Giữ (0), hoặc Mua (dương) đối với từng mã cổ phiếu, ràng buộc giao dịch tối đa $h_{\max} = 100$ cổ phiếu mỗi lệnh.
+* **Hàm phần thưởng (Reward)**: Tối đa hóa tổng giá trị tài sản ròng (Portfolio Value) và giảm thiểu mức sụt giảm tài sản cực đại (Max Drawdown).
 
-## Reference
-Hongyang Yang, Xiao-Yang Liu, Shan Zhong, and Anwar Walid. 2020. Deep Reinforcement Learning for Automated Stock Trading: An Ensemble Strategy. In ICAIF ’20: ACM International Conference on AI in Finance, Oct. 15–16, 2020, Manhattan, NY. ACM, New York, NY, USA.
+### Ràng buộc Thị trường Việt Nam (HOSE)
+* **Chu kỳ thanh toán T+3**: Mô phỏng thực tế dòng tiền giao dịch, tiền bán chứng khoán chỉ khả dụng sau 3 ngày giao dịch.
+* **Biên độ trần sàn $\pm 7\%$**: Ngăn chặn các hành vi mua giá trần hoặc bán giá sàn khi cổ phiếu chạm biên độ giao dịch hàng ngày.
+* **Phí giao dịch thực tế**: Thiết lập ở mức $0.1\%$ trên mỗi giá trị giao dịch.
 
-## [Our Medium Blog](https://medium.com/@ai4finance/deep-reinforcement-learning-for-automated-stock-trading-f1dad0126a02)
+---
 
-## Directory Structure
+## 2. Cấu trúc Thư mục Dự án
 
-The project has been structured as follows to ensure organization and ease of navigation:
-
-* **`config/`**: Configuration files (e.g., `config.py` defining stock universes, date ranges, and hyperparameters).
-* **`data/`**: Processed and raw stock dataset CSV/JSON files.
-* **`docs/`**: Main research documentation and papers (e.g., `paper.md`).
-* **`logs/`**: Execution and training logs.
-* **`model/`**: Reinforcement learning model architectures and policies (A2C, PPO, DDPG, and ensemble logic).
-* **`notebooks/`**: Jupyter notebooks for interactive analysis and backtesting.
-* **`preprocessing/`**: Data preprocessing pipelines and technical indicator calculators.
-* **`presentation/`**: LaTeX Beamer slides source code, figures, and compiled PDF presentation.
-* **`results/`**: Outputs, performance metrics, and portfolio value logs.
-* **`scripts/`**: Utility scripts (e.g., CSV conversion, ajexdi calculation, metrics calculation).
-* **`run_DRL.py`**: Main entrypoint script at the root directory to run the ensemble strategy.
-
-## Installation:
-```shell
-git clone https://github.com/AI4Finance-LLC/Deep-Reinforcement-Learning-for-Automated-Stock-Trading-Ensemble-Strategy-ICAIF-2020.git
+```text
+├── config/             # Cấu hình danh mục cổ phiếu, tham số huấn luyện & kiểm thử
+│   └── config.py
+├── data/               # Dữ liệu lịch sử 15 mã cổ phiếu HOSE (2014-2025)
+│   ├── processed2.csv  # Dữ liệu huấn luyện và kiểm chứng
+│   └── test.csv        # Dữ liệu kiểm thử out-of-sample
+├── env/                # Môi trường giả lập giao dịch chứng khoán (Gym environments)
+│   ├── EnvMultipleStock_train.py
+│   ├── EnvMultipleStock_validation.py
+│   └── EnvMultipleStock_trade.py
+├── model/              # Logic huấn luyện tác tử và bộ chọn Ensemble
+│   └── models.py
+├── preprocessing/      # Tiền xử lý dữ liệu và tính toán chỉ báo kỹ thuật
+│   └── preprocessors.py
+├── presentation/       # Tệp nguồn Slide thuyết trình LaTeX Beamer và bản PDF hoàn chỉnh
+│   ├── presentation.tex
+│   └── presentation.pdf
+├── figs/               # Các biểu đồ và sơ đồ phục vụ slide và báo cáo
+├── results/            # Kết quả lưu trữ chạy thực nghiệm (CSV/PNG)
+├── logs/               # Nhật ký ghi chép quá trình chạy mô hình
+├── scripts/            # Các công cụ/script bổ trợ tính toán và vẽ biểu đồ
+├── run_DRL.py          # Script chính để chạy huấn luyện và kiểm thử chiến lược
+├── generate_eval_plots.py # Script tự động sinh toàn bộ biểu đồ thực nghiệm
+├── requirements.txt    # Danh sách các thư viện Python bắt buộc
+└── README.md           # Hướng dẫn dự án này
 ```
 
+---
 
+## 3. Danh mục Cổ phiếu & Thiết lập Thực nghiệm
 
-### Prerequisites
-For [OpenAI Baselines](https://github.com/openai/baselines), you'll need system packages CMake, OpenMPI and zlib. Those can be installed as follows
+### Danh mục 15 cổ phiếu Blue-chip (sàn HOSE):
+* **Ngân hàng**: ACB, BID, CTG, MBB, SHB, STB, VCB
+* **Công nghệ**: FPT
+* **Năng lượng**: GAS
+* **Thép/Sản xuất**: HPG
+* **Hàng tiêu dùng**: MSN, VNM
+* **Bất động sản**: VIC
+* **Chứng khoán**: SSI
+* **Bảo hiểm**: BVH
 
-#### Ubuntu
+### Phân chia dữ liệu:
+* **In-sample (Huấn luyện & Kiểm chứng)**: Từ `2014-01-02` đến `2020-12-31`.
+* **Out-of-sample (Kiểm thử thực tế)**: Từ `2021-01-04` đến `2025-05-30` (Trải qua giai đoạn Up-trend mạnh 2021, Down-trend khốc liệt 2022, và phân hóa phục hồi 2023-2025).
 
+---
+
+## 4. Hướng dẫn Cài đặt & Sử dụng
+
+### Yêu cầu hệ thống:
+* Hỗ trợ hệ điều hành Linux (Ubuntu khuyên dùng).
+* Phiên bản Python khuyến nghị: `Python 3.6` hoặc `Python 3.7`.
+
+### Cài đặt thư viện:
+Cài đặt các gói phụ thuộc hệ thống (cho MPI và TensorFlow 1.15):
 ```bash
 sudo apt-get update && sudo apt-get install cmake libopenmpi-dev python3-dev zlib1g-dev libgl1-mesa-glx
 ```
-
-#### Mac OS X
-Installation of system packages on Mac requires [Homebrew](https://brew.sh). With Homebrew installed, run the following:
+Cài đặt các thư viện Python:
 ```bash
-brew install cmake openmpi
-```
-
-#### Windows 10
-
-To install stable-baselines on Windows, please look at the [documentation](https://stable-baselines.readthedocs.io/en/master/guide/install.html#prerequisites).
-    
-### Create and Activate Virtual Environment (Optional but highly recommended)
-cd into this repository
-```bash
-cd Deep-Reinforcement-Learning-for-Automated-Stock-Trading-Ensemble-Strategy-ICAIF-2020
-```
-Under folder /Deep-Reinforcement-Learning-for-Automated-Stock-Trading-Ensemble-Strategy-ICAIF-2020, create a virtual environment
-```bash
-pip install virtualenv
-```
-Virtualenvs are essentially folders that have copies of python executable and all python packages. 
-
-**Virtualenvs can also avoid packages conflicts.**
-
-Create a virtualenv **venv** under folder /Deep-Reinforcement-Learning-for-Automated-Stock-Trading-Ensemble-Strategy-ICAIF-2020
-```bash
-virtualenv -p python3 venv
-```
-To activate a virtualenv:
-```
-source venv/bin/activate
-```
-
-## Dependencies
-
-The script has been tested running under **Python >= 3.6.0**, with the folowing packages installed:
-
-```shell
 pip install -r requirements.txt
 ```
 
-### Questions
+### Chạy hệ thống:
+1. **Huấn luyện và Giao dịch**:
+   Chạy script chính để huấn luyện các tác tử DRL theo cơ chế cửa sổ cuốn (Growing Window) định kỳ hàng quý (63 ngày) và thực hiện giao dịch:
+   ```bash
+   python run_DRL.py
+   ```
+2. **Vẽ biểu đồ Thực nghiệm**:
+   Tự động tổng hợp dữ liệu từ thư mục `results/` và kết xuất các biểu đồ trực quan lưu trong thư mục `figs/`:
+   ```bash
+   python generate_eval_plots.py
+   ```
 
-### About Tensorflow 2.0: https://github.com/hill-a/stable-baselines/issues/366
+---
 
-If you have questions regarding TensorFlow, note that tensorflow 2.0 is not compatible now, you may use
+## 5. Kết quả Thực nghiệm Chính (2021--2025)
 
-```bash
-pip install tensorflow==1.15.4
- ```
+Bảng dưới đây tóm tắt hiệu năng giao dịch thực tế của các tác tử trên tập dữ liệu kiểm thử out-of-sample:
 
-If you have questions regarding Stable-baselines package, please refer to [Stable-baselines installation guide](https://github.com/hill-a/stable-baselines). Install the Stable Baselines package using pip:
-```
-pip install stable-baselines[mpi]
-```
+| Chỉ số Hiệu năng | Tác tử A2C | Tác tử PPO | Tác tử DDPG | Chiến lược Ensemble |
+| :--- | :---: | :---: | :---: | :---: |
+| **Lợi nhuận lũy kế** | 21.32% | 38.78% | **49.66%** | 35.90% |
+| **Lợi nhuận năm (Annualized Return)** | 6.74% | 10.07% | **11.77%** | 9.41% |
+| **Độ biến động năm (Annual Vol)** | 19.49% | 19.33% | **18.30%** | 18.57% |
+| **Tỷ số Sharpe (Sharpe Ratio)** | 0.3458 | 0.5212 | **0.6432** | 0.5066 |
+| **Mức sụt giảm cực đại (Max DD)** | -27.51% | -24.69% | **-16.57%** | -22.87% |
 
-This includes an optional dependency on MPI, enabling algorithms DDPG, GAIL, PPO1 and TRPO. If you do not need these algorithms, you can install without MPI:
-```
-pip install stable-baselines
-```
-
-Please read the [documentation](https://stable-baselines.readthedocs.io/) for more details and alternatives (from source, using docker).
-
-
-## Run DRL Ensemble Strategy
-```shell
-python run_DRL.py
-```
-## Backtesting
-
-Use Quantopian's [pyfolio package](https://github.com/quantopian/pyfolio) to do the backtesting.
-
-[Backtesting script](notebooks/backtesting.ipynb)
-
-## Status
-
-<details><summary><b>Version History</b> <i>[click to expand]</i></summary>
-<div>
-
-* 1.0.1
-	Changes: added ensemble strategy
-* 0.0.1
-    Simple version
-</div>
-</details>
-
-## Data
-The stock data we use is pulled from [Compustat database via Wharton Research Data Services](https://wrds-web.wharton.upenn.edu/wrds/ds/compd/fundq).
-<img src=figs/data.PNG width="500">
-
-### Ensemble Strategy
-Our purpose is to create a highly robust trading strategy. So we use an ensemble method to automatically select the best performing agent among PPO, A2C, and DDPG to trade based on the Sharpe ratio. The ensemble process is described as follows:
-* __Step 1__. We use a growing window of 𝑛 months to retrain our three agents concurrently. In this paper we retrain our three agents at every 3 months.
-* __Step 2__. We validate all 3 agents by using a 12-month validation- rolling window followed by the growing window we used for train- ing to pick the best performing agent which has the highest Sharpe ratio. We also adjust risk-aversion by using turbulence index in our validation stage.
-* __Step 3__. After validation, we only use the best model which has the highest Sharpe ratio to predict and trade for the next quarter.
-
-## Performance
-<img src=figs/performance.png>
+### Nhận xét quan trọng:
+1. **DDPG tối ưu nhất**: Đạt Sharpe cao nhất (`0.6432`) và kiểm soát rủi ro drawdown tốt nhất (`-16.57%`) nhờ cơ chế nhiễu khám phá OU Noise phù hợp và khả năng tối ưu hóa trong không gian hành động liên tục ổn định.
+2. **Ensemble cân bằng**: Đạt Sharpe ổn định (`0.5066`) và lợi nhuận tích lũy tốt. Tuy nhiên, hiệu năng thấp hơn DDPG đơn lẻ do chịu ảnh hưởng bởi **độ trễ lựa chọn** (Selection Lag) khi thị trường đảo chiều nhanh và **chi phí ma sát tái cơ cấu danh mục** ($0.1\%$) khi chuyển đổi qua lại giữa các tác tử mỗi quý.
+3. **Chỉ số Hỗn loạn (Turbulence Index)**: Hoạt động hiệu quả như một hệ thống cảnh báo sớm, kích hoạt chế độ phòng vệ đưa danh mục đầu tư về tiền mặt giúp tránh khỏi các cú sập mạnh của thị trường (điển hình là đợt sụt giảm năm 2022).
